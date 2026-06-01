@@ -1,45 +1,40 @@
 import streamlit as st
 from PIL import Image
 from processor import VisionPipeline
+import config
 
 # 1. 초기 설정 및 파이프라인 캐싱
-st.set_page_config(page_title="Milzi-Map", layout="wide")
-
-
-selected_model = "best.pt" 
-
-if 'pipeline' not in st.session_state or st.session_state.get('current_model') != selected_model:
-    st.session_state.pipeline = VisionPipeline(model_path=selected_model)
-    st.session_state.current_model = selected_model
-
-
-pipeline = st.session_state.pipeline
-
-st.title("밀지Map! ( Milzi-Map )")
-
-#사이드바 설정
-st.sidebar.header("설정")
-conf_threshold = st.sidebar.slider("Confidence 임계값", 0.0, 1.0, 0.5, 0.05)
-
-grid_rows = st.sidebar.slider("그리드 행(Rows) 개수", 5, 30, 10)
-grid_cols = st.sidebar.slider("그리드 열(Cols) 개수", 5, 30, 10)
-gussian_sigma = st.sidebar.slider("가우시안 블러 시그마", 0.0, 100.0, 80.0, 5.0)
-grid_shape = (grid_rows, grid_cols)
+st.set_page_config(page_title=config.PAGE_TITLE, layout=config.PAGE_LAYOUT)
+st.title(config.MAIN_TITLE)
 
 st.sidebar.header("YOLOv8 모델 설정")
 
-# 모델 선택 (n, s, m 등 사이즈별 비교 유도)
-selected_model = st.sidebar.selectbox("Detection 모델을 선택하세요.", 
-                                  ["best.pt","yolov8n.pt"])
-
+selected_model = st.sidebar.selectbox("Detection 모델을 선택하세요.", config.AVAILABLE_MODELS)
 
 if 'pipeline' not in st.session_state or st.session_state.get('current_model') != selected_model:
     with st.spinner(f"모델 '{selected_model}'을(를) 로딩 중입니다..."):
         st.session_state.pipeline = VisionPipeline(model_path=selected_model)
         st.session_state.current_model = selected_model
 
-# 현재 활성화된 파이프라인 객체 바인딩
 pipeline = st.session_state.pipeline
+
+#사이드바 설정
+st.sidebar.header("설정")
+conf_threshold = st.sidebar.slider(
+    "Confidence 임계값", 
+    config.CONF_MIN, config.CONF_MAX, config.DEFAULT_CONF_THRESHOLD, config.CONF_STEP
+)
+grid_rows = st.sidebar.slider(
+    "그리드 행(Rows) 개수", config.GRID_MIN, config.GRID_MAX, config.DEFAULT_GRID_ROWS
+)
+grid_cols = st.sidebar.slider(
+    "그리드 열(Cols) 개수", config.GRID_MIN, config.GRID_MAX, config.DEFAULT_GRID_COLS
+)
+gaussian_sigma = st.sidebar.slider(
+    "가우시안 블러 시그마", config.SIGMA_MIN, config.SIGMA_MAX, config.DEFAULT_GAUSSIAN_SIGMA, config.SIGMA_STEP
+)
+grid_shape = (grid_rows, grid_cols)
+
 
 # 큰 메뉴: 밀집도 분석 / 방향성 분석
 main_menu = st.radio(
@@ -82,7 +77,7 @@ if main_menu == "밀집도 분석":
                         input_file=uploaded_file,
                         conf_threshold=conf_threshold,
                         grid_shape=grid_shape,
-                        gussian_sigma=gussian_sigma
+                        gussian_sigma=gaussian_sigma
                     )
                     
                     # 데이터 패널 수치 동적 업데이트 반영
