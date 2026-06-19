@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from utils.density.densityMa import DensityEstimator
+from utils.density import DensityEstimator
 from utils.heatmap import HeatmapGenerator
 
 
@@ -24,25 +24,27 @@ class VisionPipeline:
         if img is None:
             raise ValueError("Failed to decode the uploaded image.")
 
+        #model inference
         results = self.model.predict(img, conf=conf_threshold, verbose=False)
         result = results[0]
 
         plotted_bgr = result.plot()
         plotted_rgb = cv2.cvtColor(plotted_bgr, cv2.COLOR_BGR2RGB)
 
-        #BB
+        # BB
         bboxes = result.boxes.xyxy.cpu().numpy() if len(result.boxes) else []
         density_estimator = DensityEstimator(
             image_shape=img.shape,
             axis_config=axis_config,
             grid_shape=grid_shape,
             sigma=gaussian_sigma,
+            
         )
         
-        ## 밀집도
+        # 밀집도
         density_result = density_estimator.estimate(bboxes)
 
-        ## 히트맵
+        # 히트맵
         heatmap_gen = HeatmapGenerator()
         heatmap_bgr = heatmap_gen.render(
             image=img,
