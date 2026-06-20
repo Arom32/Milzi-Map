@@ -38,6 +38,13 @@ gaussian_sigma = st.sidebar.slider(
     config.DEFAULT_GAUSSIAN_SIGMA,
     config.SIGMA_STEP,
 )
+estimate_ratio = st.sidebar.slider(
+    "위험도 평가 밀집도 반영 비율",
+    config.ESTIMATE_RATIO_MIN,
+    config.ESTIMATE_RATIO_MAX,
+    config.ESTIMATE_RATIO_DEFAULT,
+    config.ESTIMATE_RATIO_STEP,
+)
 
 # 메인 메뉴
 main_menu = st.radio(
@@ -66,26 +73,29 @@ if main_menu == "Density":
         if uploaded_file:
             with st.spinner("Analyzing image..."):
                 try:
-                    res_bb, res_heatmap, count, density_result = pipeline.process_all_views(
+                    res_bb, res_heatmap, count, risk_info = pipeline.process_all_views(
                         input_file=uploaded_file,
                         conf_threshold=conf_threshold,
                         gaussian_sigma=gaussian_sigma,
+                        estimate_ratio= estimate_ratio
                     )
 
                     with data_col:
-                        valid_count = int(density_result.valid_points.sum())
-                        max_cell_count = int(density_result.grid_counts.max())
-
                         st.subheader("Results")
                         st.metric(label="감지 인원 수 : ", value=f"{count:03d}")
 
                         ## 추후 수정 필요
-                        if count >= config.DANGER_THRESHOLD:
+                        if risk_info["risk_level"] == "High":
                             st.error("Risk: high")
-                        elif count >= config.WARNING_THRESHOLD:
+                        elif risk_info["risk_level"] == "Medium":
                             st.warning("Risk: medium")
                         else:
                             st.success("Risk: low")
+
+                        st.metric(label="Risk Score", value=risk_info["risk_score"])
+                        st.metric(label="최대 밀집도", value=risk_info["peak_density"])
+                        st.metric(label="전체 공간 혼잡도", value=risk_info["occupancy_ratio"])
+                         
 
                     with tab_bb:
                         st.image(
