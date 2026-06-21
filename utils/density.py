@@ -29,7 +29,7 @@ class DensityEstimator :
             sigma = np.clip(sigma, self.min_sigma, self.max_sigma)
             
             # 가우시안 커널 생성 
-            kernel_size = int(sigma * 4) | 1 
+            kernel_size = int(sigma * 6) | 1 
             kernel_1d = cv2.getGaussianKernel(kernel_size, sigma)
             kernel_2d = kernel_1d @ kernel_1d.T
             # 1d == N by 1 matrix 

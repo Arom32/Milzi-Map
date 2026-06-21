@@ -1,153 +1,160 @@
-# Milzi-Map
+# 밀지Map! (Milzi-Map!)
 
-Milzi-Map is a Streamlit application for visualizing crowd density from image
-data. It detects people with YOLO, estimates each person's ground position,
-corrects floor perspective from user-provided direction lines, and overlays a
-density heatmap on the original image.
+YOLO 기반 객체 탐지 결과를 활용해 이미지 내 인원을 카운트하고, 가우시안 커널 기반 밀집도 히트맵과 위험도 점수를 산출하는 Streamlit 웹 애플리케이션.
 
-## Main Features
+## 1. 프로젝트 소개
 
-- YOLOv8 based object detection.
-- Optional floor perspective correction from two X-direction lines and two
-  Y-direction lines.
-- Bottom-center point extraction from each bounding box.
-- Local-plane grid counting and lightweight DBSCAN-style clustering.
-- Gaussian KDE-style density accumulation.
-- Heatmap rendering as a separate final overlay step.
-- Risk level display based on the detected person count.
-- Placeholder for future flow estimation and tracking.
+### 주요 기능
+- **인원 예측**: 업로드한 이미지에서 YOLO 모델로 head 탐지하고 바운딩 박스 표시
+- **밀집도 히트맵**: 탐지된 바운딩 박스 중심에 가우시안 커널을 적용해 2D 밀집도 맵 생성 후 컬러맵으로 시각화
+- **위험도 평가**: 최대 밀집도(Peak Density)와 공간 점유율(Occupancy Ratio)을 가중합하여 Low / Medium / High 3단계로 위험도 산출
+- **모델 선택**: 사이드바에서 여러 YOLO 모델(.onnx / .pt) 중 선택해 실시간 교체 가능
 
-## Environment
+### 실행 화면
 
-- Python 3.x
-- Streamlit
-- Ultralytics YOLO
-- OpenCV
-- NumPy
-- Pillow
-- streamlit-drawable-canvas
+| Bounding Box | Density Heatmap | Original |
+|---|---|---|
+| ![Bounding Box 결과](docs/images/BoundingBox.png) | ![히트맵 결과](docs/images/HeatMap.png) | ![원본 이미지](docs/images/Raw.png) |
 
-## Installation
+## 2. 개발 환경 및 의존성
+
+본 프로젝트는 **모델 학습 환경**과 **Streamlit 서빙 환경**이 분리되어 있습니다.
+### Streamlit 서빙
+
+| 항목 | 내용 |
+|---|---|
+| Python | `3.10.11` |
+| OS | Windows 11 |
+| GPU/CUDA | **CPU 사용 (GPU 미사용)** |
+| CPU | 13th Gen Intel(R) Core(TM) i3-1315U 
+
+### 모델 학습
+
+| 항목 | 내용 |
+|---|---|
+| Python | `3.10.13` |
+| PyTorch 내장 CUDA | `12.1` (PyTorch가 빌드 시 포함한 CUDA 런타임 버전) |
+| GPU | NVIDIA GeForce RTX 4070 × 2 (각 12,282 MiB) |
+| NVIDIA Driver / 시스템 CUDA | Driver `590.48.01` / CUDA `13.1` (드라이버가 지원하는 최대 CUDA 버전이며, 위 PyTorch 런타임 CUDA `12.1`과는 별개 항목) |
+
+### 핵심 라이브러리 
+
+| 패키지 | 버전 | 용도 |
+|---|---|---|
+| streamlit | 1.39.0 | 웹 UI (`app.py`) |
+| ultralytics | 8.4.49 | YOLO 모델 로드 및 추론 (`processor.py`) |
+| torch / torchvision / torchaudio | 2.2.1 / 0.17.1 / 2.2.1 | YOLO 추론 백엔드 |
+| opencv-python | 4.9.0.80 | 이미지 디코딩, 가우시안 커널, 컬러맵, 알파블렌딩 (`density.py`, `heatmap.py`) |
+| numpy | 1.26.4 | 배열/행렬 연산 전반 |
+| pillow | 10.4.0 | 원본 이미지 표시 (`app.py`) |
+| onnx / onnxruntime | 1.22.0 / 1.23.2 | `.onnx` 모델 추론 백엔드 |
+
+전체 의존성 목록은 `requirements.txt`를 참고하세요.
+
+## 3. 상세 설치 및 실행 방법
+
+### 3.1 디렉토리 구조 
+
+```
+프로젝트_루트/
+├── app.py
+├── requirements.txt
+├── model/                   
+│   ├── onnxCode/               # onnx 변환 및 inference latency 측정에 사용된 코드(서빙과는 무관)
+│   ├── 11n_Base_960.onnx       # 아래 3.3 참고
+│   ├── 8m_Base_960.onnx
+│   ├── ...
+│   └── yolov8n.pt
+└── utils/
+    ├── config.py
+    ├── processor.py
+    ├── density.py
+    ├── heatmap.py
+    └── RiskEvaluator.py
+```
+- (참고) `model/onnxCode/`는 ONNX 변환 스크립트 보관용이며 서빙 시에는 사용되지 않습니다.
+
+### 3.2 설치
 
 ```bash
-git clone <repository-url>
+# 저장소 클론
+git clone https://github.com/Arom32/Milzi-Map.git
 cd Milzi-Map
+
+# 가상환경 생성 및 활성화 
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate      # Windows
+# source venv/bin/activate # macOS / Linux
+
+# 의존성 설치
 pip install -r requirements.txt
 ```
 
-## Run
+### 3.3 모델 파일 준비
+
+`utils/config.py`의 `AVAILABLE_MODELS`에 정의된 아래 모델 파일들을 `model/` 폴더에 위치시켜야 합니다. 
+
+- `11n_Base_960.onnx`
+- `8m_Base_960.onnx`
+- `8n_Base_960.onnx`
+- `11n_base_640.onnx`
+- `11n_ConservativeT_960.onnx`
+- `11n_HatPlus_960.onnx`
+- `11n_PramOnly_960.onnx`
+- `11n_Tuned_960.onnx`
+- `26n_Base_960.onnx`
+- `yolov8n.pt`
+
+
+ 모델은 아래의 경로에서 다운 받으실 수 있습니다. 
+
+> https://drive.google.com/drive/folders/1w1jjeTujIvRu496ouuTfnTLoQxFWUPiD?usp=sharing
+
+### 3.4 실행
 
 ```bash
 streamlit run app.py
 ```
 
-## Density Pipeline
+실행 후 브라우저에서:
+1. 사이드바 `Detection model`에서 사용할 모델 선택
+2. `Confidence threshold`, `Gaussian sigma`, `위험도 평가 밀집도 반영 비율` 슬라이더로 분석 파라미터 조정
+3. 상단 `Density` 모드에서 이미지(jpg/jpeg/png) 업로드 → Bounding Box / Density Heatmap / Original 탭에서 결과 확인
+4. 우측 패널에서 감지 인원 수, 위험도(Low/Medium/High), Risk Score, 최대 밀집도, 전체 공간 혼잡도 확인
 
-1. The user uploads an image through the Streamlit UI.
-2. The user can draw two red X-direction floor lines and two blue Y-direction
-   floor lines. Their intersections form the floor quadrilateral used for
-   perspective correction. If lines are not provided, the image coordinate system
-   is used as-is.
-3. OpenCV decodes the uploaded bytes into a BGR image.
-4. YOLO predicts bounding boxes for people.
-5. Each bounding box is converted to a bottom-center point. This is more logical
-   than the box center for crowd density because it approximates where the person
-   stands on the ground plane.
-6. `DensityEstimator` projects those points into the rectified floor plane.
-7. Valid local-plane points are counted per grid cell and clustered with a small
-   NumPy DBSCAN implementation.
-8. Gaussian kernels are accumulated in the local plane to create a smooth density
-   map.
-9. `DensityEstimator` returns the density map and analysis metrics.
-10. `HeatmapGenerator` only renders that density map: it warps the map back to
-    the original image, applies `cv2.applyColorMap`, and alpha-blends the overlay.
+## 4. 데이터 파이프라인
 
-## Code Responsibilities
-
-- `app.py`: Streamlit UI, model/settings controls, floor-line input, result display.
-- `axis_input.py`: image-canvas floor-line drawing and perspective config extraction.
-- `processor.py`: orchestration between YOLO, density estimation, and rendering.
-- `density.py`: coordinate correction, grid counting, DBSCAN, and density map
-  generation.
-- `heatmap.py`: heatmap rendering only.
-
-## Notes
-
-- The previous fixed ROI placeholder and manual four-corner polygon input were
-  removed. Users now draw two X-direction and two Y-direction floor lines.
-- `HeatmapGenerator` is intentionally render-only. Density math lives in
-  `DensityEstimator`.
-- DBSCAN is implemented locally to avoid adding a new runtime dependency.
-
-# 밀지 맵 (Milzi-Map)
-
-밀지 맵(Milzi-Map)은 이미지 데이터로부터 군중 밀집도를 시각화하는 Streamlit 애플리케이션입니다. YOLO를 사용하여 사람을 탐지하고, 각 사람의 지면 위치를 추정한 후, 사용자가 제공한 방향 선을 바탕으로 바닥 원근을 보정하여 원본 이미지 위에 밀집도 히트맵을 오버레이로 표시합니다.
-
-## 주요 기능
-
-* YOLOv8 기반 객체 탐지.
-* 사용자가 그린 두 개의 X축 방향 선과 두 개의 Y축 방향 선을 이용한 바닥 원근 보정 (선택 사항).
-* 각 바운딩 박스의 하단 중앙 점 추출.
-* 로컬 평면(Local-plane) 그리드 카운팅 및 경량화된 DBSCAN 스타일 클러스터링.
-* 가우시안 KDE 스타일 밀집도 누적.
-* 별도의 최종 오버레이 단계로 히트맵 렌더링.
-* 탐지된 인원수에 따른 위험도 레벨 표시.
-* 향후 이동 방향성 분석(Flow Estimation) 및 트래킹 모듈 추가를 위한 자리 표시자(Placeholder) 포함.
-
-## 개발 환경
-
-* Python 3.x
-* Streamlit
-* Ultralytics YOLO
-* OpenCV
-* NumPy
-* Pillow
-* streamlit-drawable-canvas
-
-## 설치 방법
-
-```bash
-git clone <repository-url>
-cd Milzi-Map
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # macOS/Linux
-pip install -r requirements.txt
-
+```mermaid
+flowchart TD
+    A[이미지 업로드<br/>jpg/jpeg/png] --> B[cv2.imdecode<br/>BGR 이미지 디코딩]
+    B --> C[YOLO model.predict<br/>conf_threshold 적용]
+    C --> D[바운딩 박스 추출<br/>result.boxes.xyxy]
+    C --> J[감지 인원 수 count]
+    C --> L[result.plot<br/>바운딩 박스 이미지 생성]
+    D --> E[DensityEstimator.estimate<br/>bbox 중심에 가우시안 커널 적용]
+    E --> F[HeatmapGenerator.render<br/>정규화 + 컬러맵 + 알파블렌딩]
+    D --> G[RiskEvaluator.evaluate<br/>peak_density / occupancy_ratio 산출]
+    G --> H[risk_score 가중합<br/>estimate_ratio 반영]
+    H --> I[risk_level 분류<br/>Low / Medium / High]
+    L --> K[Streamlit UI 출력]
+    F --> K
+    I --> K
+    J --> K
 ```
 
-## 실행 방법
 
-```bash
-streamlit run app.py
+### 단계별 설명
 
-```
+1. **이미지 입력**: `st.file_uploader`로 업로드된 파일을 `processor.py`에서 byte 단위로 읽어 `cv2.imdecode`로 디코딩
+2. **객체 탐지**: 선택된 YOLO 모델(`.onnx` 또는 `.pt`)로 `model.predict(img, conf=conf_threshold)` 실행, 바운딩 박스(`xyxy`) 추출
+3. **밀집도 추정**: `DensityEstimator`가 각 바운딩 박스 중심에 박스 크기 비례 시그마를 가진 가우시안 커널을 누적하여 2D 밀집도 맵 생성
+4. **히트맵 시각화**: `HeatmapGenerator`가 밀집도 맵을 0~255로 정규화 후 `COLORMAP_TURBO` 적용, 원본 이미지와 알파블렌딩(alpha=0.9)
+5. **위험도 평가**: `RiskEvaluator`가 밀집도 맵의 최댓값(`peak_density`)과 임계값 이상 픽셀 비율(`occupancy_ratio`)을 각각 정규화한 뒤, `estimate_ratio` 가중치로 선형 결합하여 `risk_score` 산출 → 0.5 / 1.0 기준으로 Low / Medium / High 분류
+6. **결과 출력**: 바운딩 박스 이미지, 히트맵 이미지, 원본 이미지, 인원 수, 위험도 정보를 Streamlit 탭/메트릭으로 표시
 
-## 밀집도 분석 파이프라인 (Density Pipeline)
+## 5. 팀원별 역할 분담
 
-1. 사용자가 Streamlit UI를 통해 이미지를 업로드합니다.
-2. 사용자는 두 개의 빨간색 X축 방향 선과 두 개의 파란색 Y축 방향 선을 그릴 수 있습니다. 이 선들의 교차점이 원근 보정에 사용되는 바닥 사각형(Quadrilateral)을 형성합니다. 선을 그리지 않을 경우 원본 이미지 좌표계가 그대로 사용됩니다.
-3. OpenCV가 업로드된 바이트를 BGR 이미지로 디코딩합니다.
-4. YOLO가 사람의 바운딩 박스를 예측합니다.
-5. 각 바운딩 박스는 하단 중앙 점으로 변환됩니다. 이는 박스의 중앙보다 보행자가 실제 지면에 서 있는 위치에 가깝기 때문에 군중 밀집도 파악에 더 논리적입니다.
-6. `DensityEstimator`가 해당 점들을 보정된 바닥 평면에 투영합니다.
-7. 유효한 로컬 평면 점들은 그리드 셀 단위로 집계되며, NumPy로 구현된 소형 DBSCAN을 통해 클러스터링됩니다.
-8. 가우시안 커널(Gaussian kernels)이 로컬 평면에 누적되어 부드러운 밀집도 맵(Density map)을 생성합니다.
-9. `DensityEstimator`는 밀집도 맵과 분석 지표를 반환합니다.
-10. `HeatmapGenerator`는 반환된 맵을 렌더링하는 역할만 수행합니다: 맵을 원본 이미지로 다시 워핑(warping)하고, `cv2.applyColorMap`을 적용한 뒤, 알파 블렌딩(Alpha-blending)을 통해 오버레이합니다.
-
-## 코드 구조 (Code Responsibilities)
-
-* `app.py`: Streamlit UI, 모델/설정 제어, 바닥 선 입력 캔버스, 결과 화면 출력.
-* `axis_input.py`: 이미지 캔버스 상의 바닥 선 그리기 및 원근 보정 설정 추출.
-* `processor.py`: YOLO, 밀집도 추정, 렌더링 간의 오케스트레이션(Orchestration).
-* `density.py`: 좌표 보정, 그리드 카운팅, DBSCAN 클러스터링, 밀집도 맵 생성.
-* `heatmap.py`: 히트맵 렌더링 전용 모듈.
-
-## 참고 사항
-
-* 기존의 고정된 ROI 영역 및 수동 네 모서리(four-corner) 다각형 입력 방식은 제거되었습니다. 이제 사용자는 X축 방향 선 2개, Y축 방향 선 2개를 직접 그려서 설정합니다.
-* `HeatmapGenerator`는 의도적으로 렌더링 전용으로 분리되었습니다. 밀집도 연산 로직은 `DensityEstimator`에 존재합니다.
-* 새로운 런타임 종속성을 추가하지 않기 위해 DBSCAN은 스크립트 내부(로컬)에서 직접 구현되었습니다.
+| 이름 | 역할 | 
+|---|---|
+| 김규린(20240727) | 프로젝트 구체화, 데이터 수집 및 처리, 모델 학습, 보고서 작성 및 최종 검토 |
+| 이지현(20240789) | streamlit 로직 설계 및 코드 작성 , 모델 학습, 보고서 작성  |

@@ -46,87 +46,73 @@ estimate_ratio = st.sidebar.slider(
     config.ESTIMATE_RATIO_STEP,
 )
 
-# 메인 메뉴
-main_menu = st.radio(
-    "Analysis mode",
-    ["Density", "Flow"],
-    horizontal=True,
-    label_visibility="collapsed",
+#메인 로직
+uploaded_file = st.file_uploader(
+    "Upload image",
+    type=["jpg", "jpeg", "png"],
+    key="file_uploader",
 )
 
+view_col, data_col = st.columns([0.65, 0.35])
 
-# 메인 - 밀집도 분석
-if main_menu == "Density":
-    uploaded_file = st.file_uploader(
-        "Upload image (jpg, png)",
-        type=["jpg", "jpeg", "png"],
-        key="file_uploader",
+with view_col:
+    tab_bb, tab_heatmap, tab_raw = st.tabs(
+        ["Bounding Box", "Density Heatmap", "Original"]
     )
 
-    view_col, data_col = st.columns([0.65, 0.35])
+    if uploaded_file:
+        with st.spinner("Analyzing image..."):
+            try:
+                res_bb, res_heatmap, count, risk_info = pipeline.process_all_views(
+                    input_file=uploaded_file,
+                    conf_threshold=conf_threshold,
+                    gaussian_sigma=gaussian_sigma,
+                    estimate_ratio= estimate_ratio
+                )
 
-    with view_col:
-        tab_bb, tab_heatmap, tab_raw = st.tabs(
-            ["Bounding Box", "Density Heatmap", "Original"]
-        )
+                with data_col:
+                    st.subheader("Results")
+                    st.metric(label="감지 인원 수 : ", value=f"{count:03d}")
 
-        if uploaded_file:
-            with st.spinner("Analyzing image..."):
-                try:
-                    res_bb, res_heatmap, count, risk_info = pipeline.process_all_views(
-                        input_file=uploaded_file,
-                        conf_threshold=conf_threshold,
-                        gaussian_sigma=gaussian_sigma,
-                        estimate_ratio= estimate_ratio
+                    ## 추후 수정 필요
+                    if risk_info["risk_level"] == "High":
+                        st.error("Risk: high")
+                    elif risk_info["risk_level"] == "Medium":
+                        st.warning("Risk: medium")
+                    else:
+                        st.success("Risk: low")
+
+                    st.metric(label="Risk Score", value=risk_info["risk_score"])
+                    st.metric(label="최대 밀집도", value=risk_info["peak_density"])
+                    st.metric(label="전체 공간 혼잡도", value=risk_info["occupancy_ratio"])
+                        
+
+                with tab_bb:
+                    st.image(
+                        res_bb,
+                        caption="bounding box result",
+                        use_column_width=True,
                     )
 
-                    with data_col:
-                        st.subheader("Results")
-                        st.metric(label="감지 인원 수 : ", value=f"{count:03d}")
+                with tab_heatmap:
+                    caption = "Density Heatmap"
+                    st.image(res_heatmap, caption=caption, use_column_width=True)
 
-                        ## 추후 수정 필요
-                        if risk_info["risk_level"] == "High":
-                            st.error("Risk: high")
-                        elif risk_info["risk_level"] == "Medium":
-                            st.warning("Risk: medium")
-                        else:
-                            st.success("Risk: low")
+                with tab_raw:
+                    uploaded_file.seek(0)
+                    st.image(
+                        Image.open(uploaded_file),
+                        caption="Uploaded original image",
+                        use_column_width=True,
+                    )
 
-                        st.metric(label="Risk Score", value=risk_info["risk_score"])
-                        st.metric(label="최대 밀집도", value=risk_info["peak_density"])
-                        st.metric(label="전체 공간 혼잡도", value=risk_info["occupancy_ratio"])
-                         
-
-                    with tab_bb:
-                        st.image(
-                            res_bb,
-                            caption="bounding box result",
-                            use_column_width=True,
-                        )
-
-                    with tab_heatmap:
-                        caption = "Density Heatmap"
-                        st.image(res_heatmap, caption=caption, use_column_width=True)
-
-                    with tab_raw:
-                        uploaded_file.seek(0)
-                        st.image(
-                            Image.open(uploaded_file),
-                            caption="Uploaded original image",
-                            use_column_width=True,
-                        )
-
-                except Exception as exc:
-                    st.error(f"Failed to process image: {exc}")
-                    st.exception(exc)
-        else:
-            with tab_bb:
-                st.info("Upload an image to show bounding boxes.")
-            with tab_heatmap:
-                st.info("Upload an image to show the density heatmap.")
-            with tab_raw:
-                st.info("Upload an image to show the original.")
-
-# 메인 - 흐름 분석
-elif main_menu == "Flow":
-    st.info("Flow estimation and tracking is planned.")
+            except Exception as exc:
+                st.error(f"Failed to process image: {exc}")
+                st.exception(exc)
+    else:
+        with tab_bb:
+            st.info("Upload an image to show bounding boxes.")
+        with tab_heatmap:
+            st.info("Upload an image to show the density heatmap.")
+        with tab_raw:
+            st.info("Upload an image to show the original.")
