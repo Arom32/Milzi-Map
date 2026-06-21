@@ -2,8 +2,19 @@ PAGE_TITLE = "Milzi-Map"
 PAGE_LAYOUT = "wide"
 MAIN_TITLE = "Milzi-Map"
 
-DEFAULT_MODEL = "best.pt"
-AVAILABLE_MODELS = ["best.pt", "yolov8n.pt"]
+DEFAULT_MODEL = "11n_base_640.onnx"
+AVAILABLE_MODELS = ["11n_Base_960.onnx",
+                    "8m_Base_960.onnx",
+                    "8n_Base_960.onnx",
+                    # "11n_base_960.pt",
+                    "11n_base_640.onnx",
+                    "11n_ConservativeT_960.onnx",
+                    "11n_HatPlus_960.onnx",
+                    "11n_PramOnly_960.onnx",
+                    "11n_Tuned_960.onnx",
+                    "26n_Base_960.onnx",
+                    "yolov8n.pt",
+                    ]
 
 DEFAULT_CONF_THRESHOLD = 0.5
 CONF_MIN = 0.0

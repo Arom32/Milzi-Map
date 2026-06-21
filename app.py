@@ -8,7 +8,7 @@ from utils.processor import VisionPipeline
 st.set_page_config(page_title=config.PAGE_TITLE, layout=config.PAGE_LAYOUT)
 st.title(config.MAIN_TITLE)
 
-st.sidebar.header("YOLOv8 model")
+st.sidebar.header("model")
 selected_model = st.sidebar.selectbox("Detection model", config.AVAILABLE_MODELS)
 
 if (
@@ -16,7 +16,7 @@ if (
     or st.session_state.get("current_model") != selected_model
 ):
     with st.spinner(f"Loading model '{selected_model}'..."):
-        st.session_state.pipeline = VisionPipeline(model_path=selected_model)
+        st.session_state.pipeline = VisionPipeline(model_path=f"model/{selected_model}")
         st.session_state.current_model = selected_model
 
 pipeline = st.session_state.pipeline
