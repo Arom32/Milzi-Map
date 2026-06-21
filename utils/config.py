@@ -3,7 +3,7 @@ PAGE_LAYOUT = "wide"
 MAIN_TITLE = "Milzi-Map"
 
 DEFAULT_MODEL = "best.pt"
-AVAILABLE_MODELS = ["best.pt", "yolov8n.pt", "n11_hatplus.pt"]
+AVAILABLE_MODELS = ["best.pt", "yolov8n.pt"]
 
 DEFAULT_CONF_THRESHOLD = 0.5
 CONF_MIN = 0.0
